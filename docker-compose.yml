@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  cantaloupe:
+    build: .
+    ports:
+      - "8182:8182"
+    user: root
+    volumes:
+      - $HOME\Docker\scratch:/home/cantaloupe/images/
+      - $HOME\.aws\credentials:/root/.aws/credentials:ro
+    # command: /opt/app/s3-config.sh
+    # command: /opt/app/kakadu.sh
