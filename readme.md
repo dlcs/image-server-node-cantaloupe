@@ -8,7 +8,19 @@ There are 3 different commands for running:
 
 ### Default
 
-The default command runs Cantaloupe using [./cantaloupe.properties.sample](cantaloupe.properties.sample).
+The default command runs Cantaloupe using [cantaloupe.properties.sample](cantaloupe.properties.sample).
+
+This sample file is copied from the Cantaloupe repo with the following changes:
+
+```ini
+# Use ManualSelectionStrategy as AutomaticSelectionStrategy will always try and use Kakadu, see Cantaloupe #559
+processor.selection_strategy = ManualSelectionStrategy
+
+# Use GrokProcessor for handling jp2 files
+processor.ManualSelectionStrategy.jp2 = GrokProcessor
+```
+
+> Grok is favoured over OpenJpeg as the latter isn't correctly handling ICC profiles
 
 ### S3 Sourced Properties
 
@@ -21,6 +33,8 @@ Set `KAKADU_LOCATION` env var to a valid S3 location containing Kakadu binaries 
 This will download and extract the Kakadu binaries to appropriate location for cantaloupe.
 
 Also need to set `PROPERTIES_LOCATION` as above as it's expected that config will be loaded from S3.
+
+> Remember to set `AutomaticSelectionStrategy` to use Kakadu, see (default)[#default] above.
 
 #### Kakadu Archive
 
