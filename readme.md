@@ -13,7 +13,8 @@ The default command runs Cantaloupe using [cantaloupe.properties.sample](cantalo
 This sample file is copied from the Cantaloupe repo with the following changes:
 
 ```ini
-# Use ManualSelectionStrategy as AutomaticSelectionStrategy will always try and use Kakadu, see Cantaloupe #559
+# Use ManualSelectionStrategy as AutomaticSelectionStrategy will always try and use Kakadu, 
+# see Cantaloupe #559
 processor.selection_strategy = ManualSelectionStrategy
 
 # Use GrokProcessor for handling jp2 files
@@ -50,6 +51,23 @@ java/
   kdu_jni.jar
 ```
 
+### Handling Multiple S3 bucket sources
+
+When using an [S3Source](https://cantaloupe-project.github.io/manual/5.0/sources.html#S3Source) a single bucket is supported via the `S3Source.BasicLookupStrategy.bucket.name` property.
+
+To support multiple buckets, the included `delegates.rb` file handles the `s3source_object_info` delegate. This parses the incoming identifier and pulls bucket and key from it. It handles the following formats:
+
+* `s3://{region}/{bucket}/{key}`
+* `s3://{bucket}/{key}`
+
+A sample request would then be: `http://cantaloupe/iiif/3/s3:%2f%2fmy-bucket%2f2my-key/full/max/0/default.jpg`.
+
+```ini
+delegate_script.enabled = true
+source.static = S3Source
+S3Source.lookup_strategy = ScriptLookupStrategy
+```
+
 ## Running Locally
 
 The dockerfile can be run locally, or run via the sample docker-compose file.
@@ -65,6 +83,7 @@ docker run --rm -it -p 8182:8182 \
     -e ENDPOINT_ADMIN_ENABLED=true \
     -e ENDPOINT_ADMIN_SECRET=admin \
     -v path/to/images:/home/cantaloupe/images/ \
+    --name dlcs-cantaloupe \
     dlcs-cantaloupe:local
 
 # use cantaloupe properties file stored in s3
@@ -73,6 +92,7 @@ docker run --rm -it -p 8182:8182 \
     -e ENDPOINT_ADMIN_SECRET=admin \
     -e PROPERTIES_LOCATION=s3://my-bucket-name/cantaloupe.properties.s3 \
     -v path/to/images:/home/cantaloupe/images/ \
+    --name dlcs-cantaloupe \
     dlcs-cantaloupe:local \
     /opt/app/s3-config.sh
 
@@ -84,8 +104,19 @@ docker run --rm -it -p 8182:8182 \
     -e KAKADU_LOCATION=s3://my-bucket-name/kakadu-8.2.1.tar.gz \
     -e KAKADU_VERSION=8.2.1 \
     -v path/to/images:/home/cantaloupe/images/ \
+    --name dlcs-cantaloupe \
     dlcs-cantaloupe:local \
     /opt/app/kakadu.sh
+
+# run as "special-server" using S3Source
+docker run --rm -it -p 8182:8182 \
+    -e ENDPOINT_ADMIN_ENABLED=true \
+    -e ENDPOINT_ADMIN_SECRET=admin \
+    -e DELEGATE_SCRIPT_ENABLED=true \
+    -e SOURCE_STATIC=S3Source \
+    -e S3SOURCE_LOOKUP_STRATEGY=ScriptLookupStrategy \
+    --name dlcs-cantaloupe \
+    dlcs-cantaloupe:local
 ```
 
 Alternatively there's a docker compose file to run, copy `.env.dist` -> `.env` and alter as required.

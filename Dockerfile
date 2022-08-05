@@ -79,8 +79,9 @@ COPY --from=build /cantaloupe-$CANTALOUPE_VERSION/cantaloupe-$CANTALOUPE_VERSION
 RUN mkdir -p /var/log/cantaloupe /var/cache/cantaloupe \
     && chown -R cantaloupeusr /cantaloupe /var/log/cantaloupe /var/cache/cantaloupe
 
-# Copy sample properties file
+# Copy sample properties file + delegates
 COPY cantaloupe.properties.sample /cantaloupe/cantaloupe.properties.sample
+COPY delegates.rb /cantaloupe/delegates.rb
 
 COPY entrypoint/* /opt/app/
 RUN chmod +x --recursive /opt/app/
