@@ -1,5 +1,3 @@
-require 'java'
-
 ##
 # Sample Ruby delegate script containing stubs and documentation for all
 # available delegate methods. See the user manual for more information.
