@@ -26,7 +26,7 @@ ENV OPENJPEG_VERSION=2.5.0
 ENV JAVA_HOME=/opt/jdk
 ENV PATH=$PATH:/opt/jdk/bin:/opt/maven/bin
 ENV MAXHEAP=2g
-ENV INITHEAP=2g
+ENV INITHEAP=256m
 ARG DEBIAN_FRONTEND=noninteractive
 
 LABEL maintainer="Donald Gray <donald.gray@digirati.com>"

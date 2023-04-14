@@ -148,7 +148,7 @@ libjpeg dep is copied from the official [cantaloupe repo](https://github.com/can
 
 ## Java Memory 
 
-The initial heap and maximum heap size are defaulted to 2GB in the Dockerfile.
+The initial heap and maximum heap size are defaulted to initial 256MB/max 2GB in the Dockerfile.
 
 These can be overridden by specifying the following envvars (see https://cantaloupe-project.github.io/manual/5.0/deployment.html#MemoryHeapMemory):
 
