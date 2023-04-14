@@ -14,7 +14,7 @@ This sample file is copied from the Cantaloupe repo with the following changes:
 
 ```ini
 # Use ManualSelectionStrategy as AutomaticSelectionStrategy will always try and use Kakadu, 
-# see Cantaloupe #559
+# see Cantaloupe https://github.com/cantaloupe-project/cantaloupe/issues/559
 processor.selection_strategy = ManualSelectionStrategy
 
 # Use GrokProcessor for handling jp2 files
@@ -120,6 +120,7 @@ docker run --rm -it -p 8182:8182 \
 ```
 
 Alternatively there's a docker compose file to run, copy `.env.dist` -> `.env` and alter as required.
+
 ```bash
 # Run docker-compose
 docker compose up
@@ -144,3 +145,25 @@ Kakadu native processor is supported by providing path to Kakadu (see [above](#k
 ### Dependencies
 
 libjpeg dep is copied from the official [cantaloupe repo](https://github.com/cantaloupe-project/cantaloupe/tree/develop/docker/Linux-JDK11/image_files/libjpeg-turbo/lib64).
+
+## Java Memory 
+
+The initial heap and maximum heap size are defaulted to 2GB in the Dockerfile.
+
+These can be overridden by specifying the following envvars (see https://cantaloupe-project.github.io/manual/5.0/deployment.html#MemoryHeapMemory):
+
+* MAXHEAP - Value for `-Xmx` Java arg.
+* INITHEAP - Value for `-Xms` Java arg.
+
+e.g.
+
+```bash
+docker run --rm -it -p 8182:8182 \
+    -e ENDPOINT_ADMIN_ENABLED=true \
+    -e ENDPOINT_ADMIN_SECRET=admin \
+    -e MAXHEAP=5g \
+    -e INITHEAP=3g \
+    -v path/to/images:/home/cantaloupe/images/ \
+    --name dlcs-cantaloupe \
+    dlcs-cantaloupe:local
+```
