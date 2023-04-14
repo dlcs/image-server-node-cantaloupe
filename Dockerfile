@@ -25,6 +25,8 @@ ENV CANTALOUPE_VERSION=5.0.5
 ENV OPENJPEG_VERSION=2.5.0
 ENV JAVA_HOME=/opt/jdk
 ENV PATH=$PATH:/opt/jdk/bin:/opt/maven/bin
+ENV MAXHEAP=2g
+ENV INITHEAP=256m
 ARG DEBIAN_FRONTEND=noninteractive
 
 LABEL maintainer="Donald Gray <donald.gray@digirati.com>"
@@ -88,4 +90,4 @@ RUN chmod +x --recursive /opt/app/
 
 EXPOSE 8182
 USER cantaloupeusr
-CMD ["sh", "-c", "java -Dcantaloupe.config=/cantaloupe/cantaloupe.properties.sample -jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar"]
+CMD ["sh", "-c", "java -Dcantaloupe.config=/cantaloupe/cantaloupe.properties.sample -Xmx$MAXHEAP -Xms$INITHEAP -jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar"]
