@@ -131,10 +131,10 @@ docker compose up
 By default it will run with Cantaloupe running the following [processors](https://cantaloupe-project.github.io/manual/5.0/processors.html):
 
 * Ffmpeg
-* Grok
+* Grok (v12.0.3)
 * Jai
 * Java2d
-* OpenJpeg (v2.5.0)
+* OpenJpeg (v2.5.2)
 * PdfBox
 * TurboJpeg
 
