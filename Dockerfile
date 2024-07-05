@@ -1,7 +1,8 @@
 FROM ubuntu:jammy as build
 
-ENV CANTALOUPE_VERSION=5.0.5
-ENV OPENJPEG_VERSION=2.5.0
+ENV CANTALOUPE_VERSION=5.0.6
+ENV OPENJPEG_VERSION=2.5.2
+ENV GROK_VERSION=12.0.3
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install various dependencies:
@@ -12,19 +13,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     unzip
 
-RUN wget -q https://github.com/GrokImageCompression/grok/releases/download/v7.6.5/libgrokj2k1_7.6.5-1_amd64.deb \
-    && wget -q https://github.com/GrokImageCompression/grok/releases/download/v7.6.5/grokj2k-tools_7.6.5-1_amd64.deb \
-    && wget -q https://github.com/cantaloupe-project/cantaloupe/releases/download/v$CANTALOUPE_VERSION/cantaloupe-$CANTALOUPE_VERSION.zip \
+RUN wget -q https://github.com/cantaloupe-project/cantaloupe/releases/download/v$CANTALOUPE_VERSION/cantaloupe-$CANTALOUPE_VERSION.zip \
     && unzip cantaloupe-$CANTALOUPE_VERSION.zip \
     && wget -q https://github.com/uclouvain/openjpeg/releases/download/v$OPENJPEG_VERSION/openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz \
-    && tar -xzf openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz
+    && tar -xzf openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz \
+    && wget -q https://github.com/GrokImageCompression/grok/releases/download/v$GROK_VERSION/grok-ubuntu-latest.zip \
+    && unzip grok-ubuntu-latest.zip
 
 FROM ubuntu:jammy
 
-ENV CANTALOUPE_VERSION=5.0.5
-ENV OPENJPEG_VERSION=2.5.0
+ENV CANTALOUPE_VERSION=5.0.6
+ENV OPENJPEG_VERSION=2.5.2
 ENV JAVA_HOME=/opt/jdk
 ENV PATH=$PATH:/opt/jdk/bin:/opt/maven/bin
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/lib
 ENV MAXHEAP=2g
 ENV INITHEAP=256m
 ARG DEBIAN_FRONTEND=noninteractive
@@ -52,17 +54,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     awscli \
     && rm -rf /var/lib/apt/lists/*
 
-# Install GrokProcessor deps
-COPY --from=build /libgrokj2k1_7.6.5-1_amd64.deb /libgrokj2k1_7.6.5-1_amd64.deb
-COPY --from=build /grokj2k-tools_7.6.5-1_amd64.deb /grokj2k-tools_7.6.5-1_amd64.deb
-RUN dpkg -i ./libgrokj2k1_7.6.5-1_amd64.deb \
-    && dpkg -i --ignore-depends=libjpeg62-turbo ./grokj2k-tools_7.6.5-1_amd64.deb \
-    && rm libgrokj2k1_7.6.5-1_amd64.deb \
-    && rm grokj2k-tools_7.6.5-1_amd64.deb
+# Copy GrokProcessor
+COPY --from=build /grok-ubuntu-latest/bin/* /bin
+COPY --from=build /grok-ubuntu-latest/lib/* /lib
+COPY --from=build /grok-ubuntu-latest/include/grok-12.0/* /usr/lib
 
 # Copy OpenJPEG
 COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/bin/* /bin
 COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/lib/* /lib
+COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/include/openjpeg-2.5/* /usr/lib/
 
 # Copy TurboJpegProcessor dependencies + create symlinks
 COPY libjpeg /opt/libjpeg-turbo/lib
