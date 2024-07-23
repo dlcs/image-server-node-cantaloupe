@@ -2,7 +2,7 @@ FROM ubuntu:jammy as build
 
 ENV CANTALOUPE_VERSION=5.0.6
 ENV OPENJPEG_VERSION=2.5.2
-ENV GROK_VERSION=12.0.3
+ENV GROK_VERSION=13.0.0
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install various dependencies:
@@ -18,7 +18,9 @@ RUN wget -q https://github.com/cantaloupe-project/cantaloupe/releases/download/v
     && wget -q https://github.com/uclouvain/openjpeg/releases/download/v$OPENJPEG_VERSION/openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz \
     && tar -xzf openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz \
     && wget -q https://github.com/GrokImageCompression/grok/releases/download/v$GROK_VERSION/grok-ubuntu-latest.zip \
-    && unzip grok-ubuntu-latest.zip
+    && unzip grok-ubuntu-latest.zip \
+    && wget -q https://download.java.net/java/GA/jdk18/43f95e8614114aeaa8e8a5fcf20a682d/36/GPL/openjdk-18_linux-x64_bin.tar.gz \
+    && tar xfz openjdk-18_linux-x64_bin.tar.gz
 
 FROM ubuntu:jammy
 
@@ -54,10 +56,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     awscli \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy JDK + latest Maven
+COPY --from=build /jdk-18 /opt/jdk
+
 # Copy GrokProcessor
 COPY --from=build /grok-ubuntu-latest/bin/* /bin
 COPY --from=build /grok-ubuntu-latest/lib/* /lib
-COPY --from=build /grok-ubuntu-latest/include/grok-12.0/* /usr/lib
+COPY --from=build /grok-ubuntu-latest/include/grok-13.0/* /usr/lib
 
 # Copy OpenJPEG
 COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/bin/* /bin
