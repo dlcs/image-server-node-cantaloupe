@@ -1,93 +1,42 @@
-FROM ubuntu:jammy as build
+FROM registry.access.redhat.com/ubi8/ubi:latest AS jpegturbo-build
 
-ENV CANTALOUPE_VERSION=5.0.6
-ENV OPENJPEG_VERSION=2.5.2
-ENV GROK_VERSION=12.0.3
-ARG DEBIAN_FRONTEND=noninteractive
+RUN yum module install -y llvm-toolset && yum install -y git cmake java-21-openjdk-devel
 
-# Install various dependencies:
-# * ca-certificates is needed by wget
-# * wget download stuffs in this dockerfile
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    wget \
-    unzip
+ARG jpegturbo_commitish="main"
+RUN git clone -b "${jpegturbo_commitish}" https://github.com/libjpeg-turbo/libjpeg-turbo.git /work && \
+    mkdir /work/build /opt/turbojpeg
 
-RUN wget -q https://github.com/cantaloupe-project/cantaloupe/releases/download/v$CANTALOUPE_VERSION/cantaloupe-$CANTALOUPE_VERSION.zip \
-    && unzip cantaloupe-$CANTALOUPE_VERSION.zip \
-    && wget -q https://github.com/uclouvain/openjpeg/releases/download/v$OPENJPEG_VERSION/openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz \
-    && tar -xzf openjpeg-v$OPENJPEG_VERSION-linux-x86_64.tar.gz \
-    && wget -q https://github.com/GrokImageCompression/grok/releases/download/v$GROK_VERSION/grok-ubuntu-latest.zip \
-    && unzip grok-ubuntu-latest.zip
+RUN cmake -DCMAKE_INSTALL_PREFIX=/opt/turbojpeg -DWITH_JAVA=1 -DCMAKE_BUILD_TYPE=RelWithDebInfo -B /work/build -S /work && \
+    cmake --build /work/build -t install
 
-FROM ubuntu:jammy
+FROM registry.access.redhat.com/ubi8/ubi:latest AS openjpeg-build
 
-ENV CANTALOUPE_VERSION=5.0.6
-ENV OPENJPEG_VERSION=2.5.2
-ENV JAVA_HOME=/opt/jdk
-ENV PATH=$PATH:/opt/jdk/bin:/opt/maven/bin
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/lib
-ENV MAXHEAP=2g
-ENV INITHEAP=256m
-ARG DEBIAN_FRONTEND=noninteractive
+RUN yum module install -y llvm-toolset && yum install -y git cmake
 
-LABEL maintainer="Donald Gray <donald.gray@digirati.com>"
-LABEL org.opencontainers.image.source=https://github.com/dlcs/image-server-node-cantaloupe
-LABEL org.opencontainers.image.description="Cantaloupe image-server on Ubuntu"
+ARG openjpeg_commitish="master"
+RUN git clone -b "${openjpeg_commitish}" https://github.com/uclouvain/openjpeg/ /work && \
+    mkdir /work/build /opt/openjpeg
 
-# Install various dependencies:
-# * ffmpeg is needed by FfmpegProcessor
-# * libopenjp2-tools is needed by OpenJpegProcessor
-# * All the rest is needed by GrokProcessor
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ffmpeg \
-    libopenjp2-tools \
-    liblcms2-dev \
-    libpng-dev \
-    libzstd-dev \
-    libtiff-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    libwebp-dev \
-    libimage-exiftool-perl \
-    default-jre-headless \
-    awscli \
-    && rm -rf /var/lib/apt/lists/*
+RUN cmake -DCMAKE_INSTALL_PREFIX=/opt/openjpeg -DCMAKE_BUILD_TYPE=RelWithDebInfo -B /work/build -S /work && \
+    cmake --build /work/build -t install
 
-# Copy GrokProcessor
-COPY --from=build /grok-ubuntu-latest/bin/* /bin
-COPY --from=build /grok-ubuntu-latest/lib/* /lib
-COPY --from=build /grok-ubuntu-latest/include/grok-12.0/* /usr/lib
+FROM registry.access.redhat.com/ubi8/ubi:latest AS cantaloupe-build
 
-# Copy OpenJPEG
-COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/bin/* /bin
-COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/lib/* /lib
-COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/include/openjpeg-2.5/* /usr/lib/
+RUN yum install -y git java-21-openjdk-devel java-21-openjdk-headless maven
 
-# Copy TurboJpegProcessor dependencies + create symlinks
-COPY libjpeg /opt/libjpeg-turbo/lib
+ARG cantaloupe_commitish="develop"
+RUN git clone -b "${cantaloupe_commitish}" https://github.com/cantaloupe-project/cantaloupe /work
 
-RUN ln -s /opt/libjpeg-turbo/lib/libjpeg.so.62.3.0 /opt/libjpeg-turbo/lib/libjpeg.so.62 
-RUN ln -s /opt/libjpeg-turbo/lib/libjpeg.so.62 /opt/libjpeg-turbo/lib/libjpeg.so
+WORKDIR /work
+ENV JAVA_HOME=/usr/lib/jvm/jre-21-openjdk
+RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline
+RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests
 
-RUN ln -s /opt/libjpeg-turbo/lib/libturbojpeg.so.0.2.0 /opt/libjpeg-turbo/lib/libturbojpeg.so.0
-RUN ln -s /opt/libjpeg-turbo/lib/libturbojpeg.so.0 /opt/libjpeg-turbo/lib/libturbojpeg.so
-
-# Add non-root user
-RUN adduser --system cantaloupeusr
-
-# Setup Cantaloupe
-COPY --from=build /cantaloupe-$CANTALOUPE_VERSION/cantaloupe-$CANTALOUPE_VERSION.jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar
-RUN mkdir -p /var/log/cantaloupe /var/cache/cantaloupe \
-    && chown -R cantaloupeusr /cantaloupe /var/log/cantaloupe /var/cache/cantaloupe
-
-# Copy sample properties file + delegates
-COPY cantaloupe.properties.sample /cantaloupe/cantaloupe.properties.sample
-COPY delegates.rb /cantaloupe/delegates.rb
-
-COPY entrypoint/* /opt/app/
-RUN chmod +x --recursive /opt/app/
-
+FROM registry.access.redhat.com/ubi8/openjdk-21-runtime
+COPY --from=openjpeg-build /opt/openjpeg /opt/openjpeg
+COPY --from=jpegturbo-build /opt/turbojpeg /opt/turbojpeg
+RUN mkdir /opt/cantaloupe
+COPY --from=cantaloupe-build /work/target/cantaloupe-*.jar /opt/cantaloupe/cantaloupe.jar
+COPY cantaloupe.properties.sample /opt/cantaloupe/cantaloupe.properties.sample
 EXPOSE 8182
-USER cantaloupeusr
-CMD ["sh", "-c", "java -Dcantaloupe.config=/cantaloupe/cantaloupe.properties.sample -Xmx$MAXHEAP -Xms$INITHEAP -jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar"]
+CMD [ "java", "-Dcantaloupe.config=/opt/cantaloupe/cantaloupe.properties.sample", "-Djava.library.path=/opt/openjpeg/lib64:/opt/turbojpeg/lib64", "-jar", "/opt/cantaloupe/cantaloupe.jar"]
