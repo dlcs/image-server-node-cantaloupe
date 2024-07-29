@@ -2,6 +2,8 @@
 
 A single Docker file that builds and runs [Cantaloupe](https://cantaloupe-project.github.io/) image server.
 
+It's a multi-stage dockerfile that builds Cantaloupe, OpenJPEG and TurboJPEG from source.
+
 ## Configuration
 
 There are 3 different commands for running:
@@ -17,11 +19,9 @@ This sample file is copied from the Cantaloupe repo with the following changes:
 # see Cantaloupe https://github.com/cantaloupe-project/cantaloupe/issues/559
 processor.selection_strategy = ManualSelectionStrategy
 
-# Use GrokProcessor for handling jp2 files
-processor.ManualSelectionStrategy.jp2 = GrokProcessor
+# Use OpenJpegProcessor for handling jp2 files
+processor.ManualSelectionStrategy.jp2 = OpenJpegProcessor
 ```
-
-> Grok is favoured over OpenJpeg as the latter isn't correctly handling ICC profiles
 
 ### S3 Sourced Properties
 
@@ -29,11 +29,13 @@ Set `PROPERTIES_LOCATION` env var to a valid S3 location containing a cantaloupe
 
 ### Kakadu Native Processor
 
+> Untested in latest build - remove this comment when done
+
 Set `KAKADU_LOCATION` env var to a valid S3 location containing Kakadu binaries and `KAKADU_VERSION` to the version of Kakadu being used. Use `/opt/app/kakadu.sh` command. 
 
 This will download and extract the Kakadu binaries to appropriate location for cantaloupe.
 
-Also need to set `PROPERTIES_LOCATION` as above as it's expected that config will be loaded from S3.
+Can optionally set `PROPERTIES_LOCATION` as above as it's expected that config will be loaded from S3.
 
 > Remember to set `AutomaticSelectionStrategy` to use Kakadu, see (default)[#default] above.
 
@@ -130,40 +132,12 @@ docker compose up
 
 By default it will run with Cantaloupe running the following [processors](https://cantaloupe-project.github.io/manual/5.0/processors.html):
 
-* Ffmpeg
-* Grok (v12.0.3)
 * Jai
 * Java2d
 * OpenJpeg (v2.5.2)
 * PdfBox
-* TurboJpeg
+* TurboJpeg (3.0.3)
 
 ### Kakadu
 
 Kakadu native processor is supported by providing path to Kakadu (see [above](#kakadu-native-processor))
-
-### Dependencies
-
-libjpeg dep is copied from the official [cantaloupe repo](https://github.com/cantaloupe-project/cantaloupe/tree/develop/docker/Linux-JDK11/image_files/libjpeg-turbo/lib64).
-
-## Java Memory 
-
-The initial heap and maximum heap size are defaulted to initial 256MB/max 2GB in the Dockerfile.
-
-These can be overridden by specifying the following envvars (see https://cantaloupe-project.github.io/manual/5.0/deployment.html#MemoryHeapMemory):
-
-* MAXHEAP - Value for `-Xmx` Java arg.
-* INITHEAP - Value for `-Xms` Java arg.
-
-e.g.
-
-```bash
-docker run --rm -it -p 8182:8182 \
-    -e ENDPOINT_ADMIN_ENABLED=true \
-    -e ENDPOINT_ADMIN_SECRET=admin \
-    -e MAXHEAP=5g \
-    -e INITHEAP=3g \
-    -v path/to/images:/home/cantaloupe/images/ \
-    --name dlcs-cantaloupe \
-    dlcs-cantaloupe:local
-```
