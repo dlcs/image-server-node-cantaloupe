@@ -6,6 +6,6 @@ if [[ -z $PROPERTIES_LOCATION ]]; then
 fi
 
 echo "Copying properties files from S3 ..."
-aws s3 cp $PROPERTIES_LOCATION /cantaloupe/cantaloupe.properties
+python3.12 /opt/app/s3_download.py $PROPERTIES_LOCATION /opt/cantaloupe/cantaloupe.properties
 
-java -Dcantaloupe.config=/cantaloupe/cantaloupe.properties -Xmx$MAXHEAP -Xms$INITHEAP -jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar
+java -Dcantaloupe.config=/opt/cantaloupe/cantaloupe.properties -Djava.library.path=/opt/openjpeg/lib64:/opt/turbojpeg/lib64 -jar /opt/cantaloupe/cantaloupe.jar

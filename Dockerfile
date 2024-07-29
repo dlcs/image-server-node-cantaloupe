@@ -36,14 +36,31 @@ RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests
 
 FROM registry.access.redhat.com/ubi8/ubi
 
+LABEL org.opencontainers.image.source=https://github.com/dlcs/image-server-node-cantaloupe
+LABEL org.opencontainers.image.description="Cantaloupe image-server on RedHat"
+
 ENV OPENJPEGPROCESSOR_PATH_TO_BINARIES=/opt/openjpeg/bin
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/openjpeg/lib64
 
 RUN yum install -y java-21-openjdk-devel
+RUN dnf -y install python3.12 python3.12-pip
+
 COPY --from=openjpeg-build /opt/openjpeg /opt/openjpeg
 COPY --from=jpegturbo-build /opt/turbojpeg /opt/turbojpeg
+
 RUN mkdir /opt/cantaloupe
 COPY --from=cantaloupe-build /work/target/cantaloupe-*.jar /opt/cantaloupe/cantaloupe.jar
+
 COPY cantaloupe.properties.sample /opt/cantaloupe/cantaloupe.properties.sample
+COPY delegates.rb /opt/cantaloupe/delegates.rb
+
+COPY config/requirements.txt /opt/app/
+RUN /usr/bin/pip3.12 install --no-warn-script-location --requirement /opt/app/requirements.txt
+
+COPY entrypoint/* /opt/app/
+RUN find . -name "*.sh" -exec chmod +x {} \;
+
+COPY config/* /opt/app/
+
 EXPOSE 8182
 CMD [ "java", "-Dcantaloupe.config=/opt/cantaloupe/cantaloupe.properties.sample", "-Djava.library.path=/opt/openjpeg/lib64:/opt/turbojpeg/lib64", "-jar", "/opt/cantaloupe/cantaloupe.jar"]

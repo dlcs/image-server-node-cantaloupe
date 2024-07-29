@@ -90,7 +90,7 @@ delegate_script.enabled = false
 # then the current working directory.
 # The delegate script pathname can also be set using the
 # -Dcantaloupe.delegate_script VM argument, which overrides this value.
-delegate_script.pathname = /cantaloupe/delegates.rb
+delegate_script.pathname = /opt/cantaloupe/delegates.rb
 
 ###########################################################################
 # ENDPOINTS
