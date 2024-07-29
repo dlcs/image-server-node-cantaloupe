@@ -14,7 +14,7 @@ FROM registry.access.redhat.com/ubi8/ubi:latest AS openjpeg-build
 
 RUN yum module install -y llvm-toolset && yum install -y git cmake
 
-ARG openjpeg_commitish="2.5.2"
+ARG openjpeg_commitish="v2.5.2"
 RUN git clone -b "${openjpeg_commitish}" https://github.com/uclouvain/openjpeg/ /work && \
     mkdir /work/build /opt/openjpeg
 
