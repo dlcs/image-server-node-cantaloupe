@@ -34,7 +34,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline
 COPY --from=jpegturbo-build /work/java /work/src/main/java
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests
 
-FROM registry.access.redhat.com/ubi8/openjdk-21-runtime
+FROM registry.access.redhat.com/ubi8/ubi
+RUN yum install -y java-21-openjdk-devel
 COPY --from=openjpeg-build /opt/openjpeg /opt/openjpeg
 COPY --from=jpegturbo-build /opt/turbojpeg /opt/turbojpeg
 RUN mkdir /opt/cantaloupe
