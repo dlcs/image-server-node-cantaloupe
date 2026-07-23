@@ -1,8 +1,8 @@
-FROM ubuntu:jammy as build
+FROM ubuntu:jammy AS build
 
-ENV CANTALOUPE_VERSION=5.0.6
+ENV CANTALOUPE_VERSION=5.0.7
 ENV OPENJPEG_VERSION=2.5.2
-ENV GROK_VERSION=12.0.3
+ENV GROK_VERSION=20.1.0
 ARG DEBIAN_FRONTEND=noninteractive
 
 # Install various dependencies:
@@ -22,11 +22,11 @@ RUN wget -q https://github.com/cantaloupe-project/cantaloupe/releases/download/v
 
 FROM ubuntu:jammy
 
-ENV CANTALOUPE_VERSION=5.0.6
+ENV CANTALOUPE_VERSION=5.0.7
 ENV OPENJPEG_VERSION=2.5.2
-ENV JAVA_HOME=/opt/jdk
-ENV PATH=$PATH:/opt/jdk/bin:/opt/maven/bin
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/lib
+ENV JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+ENV PATH=${PATH}:${JAVA_HOME}/bin
+ENV LD_LIBRARY_PATH=/lib:/usr/lib/x86_64-linux-gnu:/opt/libjpeg-turbo/lib
 ENV MAXHEAP=2g
 ENV INITHEAP=256m
 ARG DEBIAN_FRONTEND=noninteractive
@@ -40,6 +40,7 @@ LABEL org.opencontainers.image.description="Cantaloupe image-server on Ubuntu"
 # * libopenjp2-tools is needed by OpenJpegProcessor
 # * All the rest is needed by GrokProcessor
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     ffmpeg \
     libopenjp2-tools \
     liblcms2-dev \
@@ -50,14 +51,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     libwebp-dev \
     libimage-exiftool-perl \
-    default-jre-headless \
+    openjdk-21-jre-headless \
+    adduser \
     awscli \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy GrokProcessor
 COPY --from=build /grok-ubuntu-latest/bin/* /bin
 COPY --from=build /grok-ubuntu-latest/lib/* /lib
-COPY --from=build /grok-ubuntu-latest/include/grok-12.0/* /usr/lib
+COPY --from=build /grok-ubuntu-latest/include/grok-*/* /usr/lib
 
 # Copy OpenJPEG
 COPY --from=build /openjpeg-v$OPENJPEG_VERSION-linux-x86_64/bin/* /bin
@@ -74,12 +76,13 @@ RUN ln -s /opt/libjpeg-turbo/lib/libturbojpeg.so.0.2.0 /opt/libjpeg-turbo/lib/li
 RUN ln -s /opt/libjpeg-turbo/lib/libturbojpeg.so.0 /opt/libjpeg-turbo/lib/libturbojpeg.so
 
 # Add non-root user
-RUN adduser --system cantaloupeusr
+RUN adduser --system --home /home/cantaloupe --group cantaloupe
 
 # Setup Cantaloupe
 COPY --from=build /cantaloupe-$CANTALOUPE_VERSION/cantaloupe-$CANTALOUPE_VERSION.jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar
 RUN mkdir -p /var/log/cantaloupe /var/cache/cantaloupe \
-    && chown -R cantaloupeusr /cantaloupe /var/log/cantaloupe /var/cache/cantaloupe
+    /home/cantaloupe/images \
+    && chown -R cantaloupe /cantaloupe /var/log/cantaloupe /var/cache/cantaloupe /home/cantaloupe
 
 # Copy sample properties file + delegates
 COPY cantaloupe.properties.sample /cantaloupe/cantaloupe.properties.sample
@@ -89,5 +92,5 @@ COPY entrypoint/* /opt/app/
 RUN chmod +x --recursive /opt/app/
 
 EXPOSE 8182
-USER cantaloupeusr
+USER cantaloupe
 CMD ["sh", "-c", "java -Dcantaloupe.config=/cantaloupe/cantaloupe.properties.sample -Xmx$MAXHEAP -Xms$INITHEAP -jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar"]
