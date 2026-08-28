@@ -22,6 +22,13 @@ if [[ -n ${KAKADU_LOCATION:-} ]]; then
     exit 125
   fi
 
+  # Installing Kakadu copies shared libraries into /usr/lib, requires root
+  if [[ $(id -u) -ne 0 ]]; then
+    echo "KAKADU_LOCATION is set but the container is not running as root;"
+    echo "installing Kakadu writes to /usr/lib. Run the container as root."
+    exit 125
+  fi
+
   echo "Copying Kakadu $KAKADU_VERSION from S3 ..."
   mkdir -p /opt/kakadu
   aws s3 cp "$KAKADU_LOCATION" /opt/kakadu/kakadu.tar.gz
@@ -48,9 +55,15 @@ if [[ -n ${MAXHEAP:-} ]]; then
   HEAP_OPTS+=("-Xmx$MAXHEAP")
 fi
 
+# Split JAVA_OPTS into separate arguments, handles values with spaces
+JAVA_OPTS_ARGS=()
+if [[ -n ${JAVA_OPTS:-} ]]; then
+  mapfile -t JAVA_OPTS_ARGS < <(printf '%s' "$JAVA_OPTS" | xargs -n1 printf '%s\n')
+fi
+
 echo "Starting Cantaloupe with config $CONFIG ..."
 exec java \
   -Dcantaloupe.config="$CONFIG" \
   "${HEAP_OPTS[@]}" \
-  ${JAVA_OPTS:-} \
+  "${JAVA_OPTS_ARGS[@]}" \
   -jar /cantaloupe/cantaloupe.jar

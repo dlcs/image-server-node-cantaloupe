@@ -80,7 +80,11 @@ start_server() {
 
 # probe <fixture> <expected-processor>
 probe() {
-  local fixture=$1 expected=$2 body status actual
+  local fixture=$1 expected=$2 body status actual logmark
+
+  # The container is reused across probes, so only lines logged after this
+  # point can be attributed to the request below.
+  logmark=$(docker logs "$RUN_ID" 2>&1 | wc -l | tr -d ' ')
 
   body=$(mktemp)
   status=$(curl -s -o "$body" -w '%{http_code}' \
@@ -89,9 +93,14 @@ probe() {
   size=$(wc -c < "$body" | tr -d ' ')
   rm -f "$body"
 
+  # `|| true` because grep exits 1 when nothing matched, which under
+  # `set -o pipefail` would abort the run before the FAIL branches below
+  # ever get a chance to report what went wrong.
   actual=$(docker logs "$RUN_ID" 2>&1 \
+    | tail -n +$((logmark + 1)) \
     | grep -oE '[A-Za-z0-9]+Processor selected for format' \
-    | tail -1 | awk '{print $1}')
+    | tail -1 | awk '{print $1}' || true)
+  : "${actual:=<none logged>}"
 
   if [[ $status != 200 ]]; then
     printf '  FAIL  %-9s %-19s HTTP %s\n' "$fixture" "$expected" "$status"

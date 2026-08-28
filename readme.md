@@ -177,6 +177,16 @@ docker run --rm -it -p 8182:8182 \
     dlcs-cantaloupe:local
 ```
 
+`JAVA_OPTS` is split on whitespace, so it can carry several flags at once. A flag whose *value*
+contains a space needs quotes inside the variable, otherwise it is split into two arguments and
+the JVM treats the remainder as a class name:
+
+```bash
+-e JAVA_OPTS='-XX:MaxRAMPercentage=75 -Dmy.path="/some/dir with spaces"'
+```
+
+Values are not glob-expanded, so a flag containing `*` is passed through unchanged.
+
 e.g.
 
 ```bash

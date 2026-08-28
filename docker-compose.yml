@@ -8,4 +8,4 @@ services:
     volumes:
       - ${USERPROFILE}/Docker/scratch:/home/cantaloupe/images/
       - ${USERPROFILE}/.aws/credentials:/home/cantaloupe/.aws/credentials:ro
-    user: root  # required when running downloading KDU binaries (copies libs into /usr/lib)
+    #user: root  # required when running downloading KDU binaries (copies libs into /usr/lib)
