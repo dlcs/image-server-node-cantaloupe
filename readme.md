@@ -128,10 +128,10 @@ docker compose up
 
 ## Processors
 
-By default it will run with Cantaloupe running the following [processors](https://cantaloupe-project.github.io/manual/5.0/processors.html):
+By default it will run with Cantaloupe v5.0.7 running the following [processors](https://cantaloupe-project.github.io/manual/5.0/processors.html):
 
 * Ffmpeg
-* Grok (v12.0.3)
+* Grok (v20.1.0)
 * Jai
 * Java2d
 * OpenJpeg (v2.5.2)
@@ -148,7 +148,7 @@ libjpeg dep is copied from the official [cantaloupe repo](https://github.com/can
 
 ## Java Memory 
 
-The initial heap and maximum heap size are defaulted to initial 256MB/max 2GB in the Dockerfile.
+The image uses Ubuntu Jammy + OpenJDK 21, and defaults Java heap to initial 256MB/max 2GB in the Dockerfile.
 
 These can be overridden by specifying the following envvars (see https://cantaloupe-project.github.io/manual/5.0/deployment.html#MemoryHeapMemory):
 
