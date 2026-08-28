@@ -8,6 +8,4 @@ services:
     volumes:
       - ${USERPROFILE}/Docker/scratch:/home/cantaloupe/images/
       - ${USERPROFILE}/.aws/credentials:/home/cantaloupe/.aws/credentials:ro
-    # command: /opt/app/s3-config.sh
-    # user: root  # required when running /opt/app/kakadu.sh (copies libs into /usr/lib)
-    # command: /opt/app/kakadu.sh
+    user: root  # required when running downloading KDU binaries (copies libs into /usr/lib)

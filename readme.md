@@ -4,7 +4,17 @@ A single Docker file that builds and runs [Cantaloupe](https://cantaloupe-projec
 
 ## Configuration
 
-There are 3 different commands for running:
+There is a single entrypoint, [entrypoint/entrypoint.sh](entrypoint/entrypoint.sh). Optional steps only run when the matching envvar is set, so no command override is needed:
+
+| Envvars set                          | Behaviour                                                                           |
+| ------------------------------------ | ----------------------------------------------------------------------------------- |
+| _(none)_                             | Runs using the bundled [cantaloupe.properties.sample](cantaloupe.properties.sample) |
+| `PROPERTIES_LOCATION`                | Downloads the properties file from S3 and runs using it                             |
+| `KAKADU_LOCATION` + `KAKADU_VERSION` | Also downloads and installs the Kakadu binaries                                     |
+
+> [!TIP]
+> The `/opt/app/s3-config.sh` and `/opt/app/kakadu.sh` commands still work and are kept so existing
+> task definitions don't break, but they now just delegate to the entrypoint.
 
 ### Default
 
@@ -17,25 +27,26 @@ This sample file is copied from the Cantaloupe repo with the following changes:
 # see Cantaloupe https://github.com/cantaloupe-project/cantaloupe/issues/559
 processor.selection_strategy = ManualSelectionStrategy
 
-# Use GrokProcessor for handling jp2 files
-processor.ManualSelectionStrategy.jp2 = GrokProcessor
+# Use OpenJpegProcessor for handling jp2 files
+processor.ManualSelectionStrategy.jp2 = OpenJpegProcessor
 ```
 
-> Grok is favoured over OpenJpeg as the latter isn't correctly handling ICC profiles
+> Using OpenJpeg allows running without any changes.
 
 ### S3 Sourced Properties
 
-Set `PROPERTIES_LOCATION` env var to a valid S3 location containing a cantaloupe properties file and use `/opt/app/s3-config.sh` command. This will download the properties file and launch cantaloupe using it.
+Set `PROPERTIES_LOCATION` env var to a valid S3 location containing a cantaloupe properties file and use `/opt/app/entrypoint.sh` command. This will download the properties file and launch cantaloupe using it.
 
 ### Kakadu Native Processor
 
-Set `KAKADU_LOCATION` env var to a valid S3 location containing Kakadu binaries and `KAKADU_VERSION` to the version of Kakadu being used. Use `/opt/app/kakadu.sh` command. 
+Set `KAKADU_LOCATION` env var to a valid S3 location containing Kakadu binaries and `KAKADU_VERSION` to the version of Kakadu being used. Use `/opt/app/entrypoint.sh` command. 
 
 This will download and extract the Kakadu binaries to appropriate location for cantaloupe.
 
-Also need to set `PROPERTIES_LOCATION` as above as it's expected that config will be loaded from S3.
-
+> [!TIP]
 > Remember to set `AutomaticSelectionStrategy` to use Kakadu, see (default)[#default] above.
+>
+> `entrypoint.sh` copies libraries into `/usr/lib`, so it must run as root (`--user root`). The image otherwise runs as the unprivileged `cantaloupe` user.
 
 #### Kakadu Archive
 
@@ -131,10 +142,10 @@ docker compose up
 By default it will run with Cantaloupe v5.0.7 running the following [processors](https://cantaloupe-project.github.io/manual/5.0/processors.html):
 
 * Ffmpeg
-* Grok (v20.1.0)
+* Grok (v20.4.0)
 * Jai
 * Java2d
-* OpenJpeg (v2.5.2)
+* OpenJpeg (v2.5.4)
 * PdfBox
 * TurboJpeg
 
@@ -144,16 +155,27 @@ Kakadu native processor is supported by providing path to Kakadu (see [above](#k
 
 ### Dependencies
 
-libjpeg dep is copied from the official [cantaloupe repo](https://github.com/cantaloupe-project/cantaloupe/tree/develop/docker/Linux-JDK11/image_files/libjpeg-turbo/lib64).
+libturbojpeg comes from Ubuntu's `libturbojpeg` package. Cantaloupe bundles the TurboJPEG Java binding but not the native library, and its `TJLoader` looks for it at a hardcoded path, so the Dockerfile symlinks the packaged library into `/opt/libjpeg-turbo/lib/libturbojpeg.so`.
 
 ## Java Memory 
 
-The image uses Ubuntu Jammy + OpenJDK 21, and defaults Java heap to initial 256MB/max 2GB in the Dockerfile.
+The image uses Ubuntu Noble + OpenJDK 21, and defaults Java heap to initial 256MB/max 2GB in the Dockerfile.
 
 These can be overridden by specifying the following envvars (see https://cantaloupe-project.github.io/manual/5.0/deployment.html#MemoryHeapMemory):
 
 * MAXHEAP - Value for `-Xmx` Java arg.
 * INITHEAP - Value for `-Xms` Java arg.
+* JAVA_OPTS - Any extra JVM flags, appended after `-Xms`/`-Xmx`.
+
+Setting `MAXHEAP`/`INITHEAP` to an empty string omits that flag entirely, which lets the JVM size
+the heap from the container limit instead of a fixed value:
+
+```bash
+docker run --rm -it -p 8182:8182 \
+    -e MAXHEAP= -e INITHEAP= \
+    -e JAVA_OPTS=-XX:MaxRAMPercentage=75 \
+    dlcs-cantaloupe:local
+```
 
 e.g.
 
@@ -167,3 +189,24 @@ docker run --rm -it -p 8182:8182 \
     --name dlcs-cantaloupe \
     dlcs-cantaloupe:local
 ```
+
+## Github Actions
+
+Basic github action will build images:
+* On PR to `main`, tagged with `pr-xxx` and sha1.
+* On workflow_dispatch. Tagged with sha1 and tagged with Cantaloupe version if run against `main` branch.
+  
+> [!IMPORTANT]
+> The Cantaloupe version is hardcoded in [build-image.yml](./.github/workflows/build-image.yml).
+
+## New Build Checklist
+
+Whenever we build a new image:
+* Update the hardcoded Cantaloupe version in [build-image.yml](./.github/workflows/build-image.yml)
+* Update default [processor](#processors) versions, above.
+* Verify that all processors are working.
+
+Test all processors working, see [test/smoke-test.sh](./test/smoke-test.sh) for example.
+
+> [!CAUTION]
+> The above doesn't test KakaduNativeProcessor as that requires a license.
