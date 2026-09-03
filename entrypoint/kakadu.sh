@@ -1,5 +1,12 @@
-#! /bin/bash
-
+#!/bin/bash
+#
+# Deprecated - kept so existing task definitions using
+# `command: /opt/app/kakadu.sh` keep working.
+#
+# The default entrypoint now installs Kakadu whenever KAKADU_LOCATION is set,
+# so no command override is needed. Still requires running as root, since the
+# Kakadu libraries are copied into /usr/lib.
+#
 if [[ -z $KAKADU_LOCATION ]]; then
   echo "Need to specify KAKADU_LOCATION envvar"
   exit 125
@@ -10,14 +17,4 @@ if [[ -z $KAKADU_VERSION ]]; then
   exit 125
 fi
 
-echo "Copying Kakadu $KAKADU_VERSION from S3 ..."
-aws s3 cp $KAKADU_LOCATION /opt/kakadu/kakadu.tar.gz
-
-echo "Extracting Kakadu ..."
-cd /opt/kakadu/ && tar -xvzf kakadu.tar.gz
-
-echo "Configuring Kakadu ..."
-cp /opt/kakadu/java/kdu_jni/* /usr/lib -r
-cp /opt/kakadu/kakadu-$KAKADU_VERSION/lib/Linux-x86-64-gcc/* /usr/lib -r
-
-bash /opt/app/s3-config.sh
+exec /opt/app/entrypoint.sh

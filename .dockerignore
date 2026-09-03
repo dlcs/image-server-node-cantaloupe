@@ -1,0 +1,10 @@
+# Allowlist: exclude everything, then re-include only what the Dockerfile COPYs.
+# Keeps the build context small (samples/ and .git are ~750MB each) and keeps
+# .env — which holds real AWS credentials — out of the daemon entirely.
+#
+# NOTE: adding a COPY to the Dockerfile means adding a matching !rule here.
+*
+
+!entrypoint
+!cantaloupe.properties.sample
+!delegates.rb

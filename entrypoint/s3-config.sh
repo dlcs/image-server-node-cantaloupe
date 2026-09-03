@@ -1,11 +1,14 @@
-#! /bin/bash
-
+#!/bin/bash
+#
+# Deprecated - kept so existing task definitions using
+# `command: /opt/app/s3-config.sh` keep working.
+#
+# The default entrypoint now pulls the properties file from S3 whenever
+# PROPERTIES_LOCATION is set, so no command override is needed.
+#
 if [[ -z $PROPERTIES_LOCATION ]]; then
   echo "Need to specify PROPERTIES_LOCATION envvar"
   exit 125
 fi
 
-echo "Copying properties files from S3 ..."
-aws s3 cp $PROPERTIES_LOCATION /cantaloupe/cantaloupe.properties
-
-java -Dcantaloupe.config=/cantaloupe/cantaloupe.properties -Xmx$MAXHEAP -Xms$INITHEAP -jar /cantaloupe/cantaloupe-$CANTALOUPE_VERSION.jar
+exec /opt/app/entrypoint.sh
