@@ -27,6 +27,11 @@ module GatewayToken
 
   ENABLED = !SECRETS.empty?
 
+  unless ENABLED
+    warn 'GATEWAY_TOKEN_SECRET is not set; X-Gateway-Token verification is ' \
+         'DISABLED and every request will be authorized.'
+  end
+
   WINDOW = begin
     configured = ENV['GATEWAY_TOKEN_WINDOW_SECONDS'].to_s.strip
     window     = configured.empty? ? DEFAULT_WINDOW : configured.to_i
