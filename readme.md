@@ -16,6 +16,8 @@ There is a single entrypoint, [entrypoint/entrypoint.sh](entrypoint/entrypoint.s
 > The `/opt/app/s3-config.sh` and `/opt/app/kakadu.sh` commands still work and are kept so existing
 > task definitions don't break, but they now just delegate to the entrypoint.
 
+See [#gateway-token-verification](#gateway-token-verification) for more configuration options.
+
 ### Default
 
 The default command runs Cantaloupe using [cantaloupe.properties.sample](cantaloupe.properties.sample).
@@ -77,6 +79,56 @@ A sample request would then be: `http://cantaloupe/iiif/3/s3:%2f%2fmy-bucket%2f2
 delegate_script.enabled = true
 source.static = S3Source
 S3Source.lookup_strategy = ScriptLookupStrategy
+```
+
+## Gateway Token Verification
+
+This image server is intended to sit behind a reverse-proxy. To enforce that, the proxy includes an `X-Gateway-Token` header on every request it forwards and `pre_authorize()` in [delegates.rb](delegates.rb) rejects anything that doesn't carry a matching signature with a `403`.
+
+The signature is `HMAC-SHA256`, hex-encoded lowercase, in format `orch|v1|{bucket}|{identifier}`
+
+* `bucket` is `unix_time / window_seconds`, integer division - a value that both sides derive from
+  the clock rather than exchanging.
+* `identifier` is the `{identifier}` from [IIIF Image request](https://iiif.io/api/image/3.0/#2-uri-syntax) **exactly as it appears in the request path**, still percent-encoded.
+
+### Configuration
+
+Set as environment variables, read once when the delegate script is loaded. Restart the container to pick up new values.
+
+| Envvar                           | Default | Description                                                                   |
+| -------------------------------- | ------- | ----------------------------------------------------------------------------- |
+| `GATEWAY_TOKEN_SECRET`           | `null`  | Shared secret. **Verification is off entirely until this is set.**            |
+| `GATEWAY_TOKEN_SECRET_SECONDARY` | `null`  | A second secret that is also accepted. Only needed while rotating, see below. |
+| `GATEWAY_TOKEN_WINDOW_SECONDS`   | `1800`  | Window size in seconds. Must match proxy.                                     |
+
+Requires `delegate_script.enabled = true` (`DELEGATE_SCRIPT_ENABLED=true`) to enable.
+
+```bash
+docker run --rm -it -p 8182:8182 \
+    -e DELEGATE_SCRIPT_ENABLED=true \
+    -e GATEWAY_TOKEN_SECRET=something-secure \
+    -v path/to/images:/home/cantaloupe/images/ \
+    dlcs-cantaloupe:local
+```
+
+> [!WARNING]
+> Leaving `GATEWAY_TOKEN_SECRET` unset bypasses verification.
+
+### Notes
+
+The current time bucket and both neighbours are accepted, to allow for clockskew. A token is therefor valid for 2-3 windows.
+
+Cantaloupe accepts both `GATEWAY_TOKEN_SECRET` and `GATEWAY_TOKEN_SECRET_SECONDARY` to allow for key rotation. Proxy will only use one of these.
+
+### Testing
+
+[test/gateway-token-test.sh](./test/gateway-token-test.sh) runs the whole thing against a built
+image - unconfigured, configured, rotating and misconfigured - and asserts that tokens are bound
+to both the identifier and the time window.
+
+```bash
+docker build -t dlcs-cantaloupe:local .
+test/gateway-token-test.sh
 ```
 
 ## Running Locally
@@ -216,7 +268,7 @@ Whenever we build a new image:
 * Update default [processor](#processors) versions, above.
 * Verify that all processors are working.
 
-Test all processors working, see [test/smoke-test.sh](./test/smoke-test.sh) for example.
+Test all processors working, see [test/smoke-test.sh](./test/smoke-test.sh) for example, and gateway token verification with [test/gateway-token-test.sh](./test/gateway-token-test.sh).
 
 > [!CAUTION]
 > The above doesn't test KakaduNativeProcessor as that requires a license.

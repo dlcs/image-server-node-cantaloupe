@@ -1,3 +1,103 @@
+require 'openssl'
+
+##
+# Verifies the `X-Gateway-Token` header, see repo readme for details.
+#
+# Unverified requests are rejected.
+#
+module GatewayToken
+
+  VERSION        = 'v1'
+  DIGEST         = 'SHA256'
+  HEADER         = 'X-Gateway-Token'
+  HEADER_LC      = HEADER.downcase.freeze
+  DEFAULT_WINDOW = 1800
+
+  # The identifier is the path component after the API version. Anchored on
+  # `/iiif/{version}/` because that is where Cantaloupe routes both image and
+  # information requests, and matched against the raw URI.
+  IDENTIFIER_PATTERN = %r{/iiif/[123]/([^/?#]+)}.freeze
+
+  SECRETS = [ENV['GATEWAY_TOKEN_SECRET'], ENV['GATEWAY_TOKEN_SECRET_SECONDARY']]
+              .map { |secret| secret.to_s.strip }
+              .reject(&:empty?)
+              .uniq
+              .map(&:freeze)
+              .freeze
+
+  ENABLED = !SECRETS.empty?
+
+  unless ENABLED
+    warn 'GATEWAY_TOKEN_SECRET is not set; X-Gateway-Token verification is ' \
+         'DISABLED and every request will be authorized.'
+  end
+
+  WINDOW = begin
+    configured = ENV['GATEWAY_TOKEN_WINDOW_SECONDS'].to_s.strip
+    window     = configured.empty? ? DEFAULT_WINDOW : configured.to_i
+    if window < 1
+      warn "GATEWAY_TOKEN_WINDOW_SECONDS is '#{configured}', which is not a " \
+           "positive integer; falling back to #{DEFAULT_WINDOW}s. Every " \
+           "request will be rejected unless this matches proxy."
+      window = DEFAULT_WINDOW
+    end
+    window
+  end
+
+  ##
+  # @param uri [String] `local_uri` from the request context: the URI as
+  #                     received by this server, before any X-Forwarded-*
+  #                     rewriting, and with the path left percent-encoded.
+  # @param headers [Map<String,String>] `request_headers` from the request
+  #                                     context.
+  # @return [Boolean] Whether the request carries a valid token.
+  #
+  def self.valid?(uri, headers)
+    token = header_value(headers)
+    return false if token.nil? || token.empty?
+
+    match = IDENTIFIER_PATTERN.match(uri.to_s)
+    return false if match.nil?
+    identifier = match[1]
+
+    # Current bucket first, and with the primary secret first, so the ordinary
+    # request costs one digest; the secondary secret covers a rotation in
+    # progress.
+    #
+    # The neighbouring buckets are then tried in order of how likely they are.
+    # The previous one covers the rollover crossover - a token minted moments
+    # before the boundary, arriving just after it. The next one covers the
+    # proxy whose clock runs ahead of ours.
+    bucket = Time.now.to_i / WINDOW
+    [bucket, bucket - 1, bucket + 1].each do |candidate|
+      message = "orch|#{VERSION}|#{candidate}|#{identifier}"
+      SECRETS.each do |secret|
+        expected = OpenSSL::HMAC.hexdigest(DIGEST, secret, message)
+        return true if OpenSSL.secure_compare(token, expected)
+      end
+    end
+    false
+  end
+
+  ##
+  # Header names reach the delegate with the casing they arrived in - HTTP/1.1
+  # preserves it, HTTP/2 lowercases it - so the two likely spellings are tried
+  # directly before paying for a scan.
+  #
+  def self.header_value(headers)
+    return nil if headers.nil?
+
+    value = headers[HEADER] || headers[HEADER_LC]
+    return value if value
+
+    headers.each do |name, header_value|
+      return header_value if name.to_s.downcase == HEADER_LC
+    end
+    nil
+  end
+
+end
+
 ##
 # Sample Ruby delegate script containing stubs and documentation for all
 # available delegate methods. See the user manual for more information.
@@ -134,8 +234,16 @@ class CustomDelegate
   # @param options [Hash] Empty hash.
   # @return [Boolean,Hash<String,Object>] See above.
   #
+  # Rejects anything that isn't a signed Orchestrator request. See the
+  # GatewayToken module at the top of this file; when no shared secret is
+  # configured this is a no-op and every request is authorized.
+  #
+  # Only the IIIF image and information endpoints reach this method, so the
+  # /health, /admin and /api endpoints stay reachable without a token.
   def pre_authorize(options = {})
-    true
+    return true unless GatewayToken::ENABLED
+
+    GatewayToken.valid?(context['local_uri'], context['request_headers'])
   end
 
   ##
